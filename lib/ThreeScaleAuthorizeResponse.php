@@ -176,7 +176,7 @@ class ThreeScaleAuthorizeResponseUsageReport {
    * Is the usage limit corresponding to this report exceeded?
    */
   public function isExceeded() {
-    return $this->getCurrentValue() > $this->getMaxValue();
+    return $this->getCurrentValue() >= $this->getMaxValue();
   }
 }
 

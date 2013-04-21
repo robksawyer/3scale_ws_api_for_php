@@ -110,7 +110,6 @@ class ThreeScaleClient {
     }
     
     $httpResponse = $this->httpClient->get($url, $params);
-
     if (self::isHttpSuccess($httpResponse)) {
       return $this->buildAuthorizeResponse($httpResponse->body);
     } else {
