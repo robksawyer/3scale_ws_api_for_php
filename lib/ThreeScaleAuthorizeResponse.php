@@ -14,6 +14,8 @@ require_once(dirname(__FILE__) . '/ThreeScaleResponse.php');
 class ThreeScaleAuthorizeResponse extends ThreeScaleResponse {
   private $usageReports = array();
   private $plan;
+  private $application;
+  private $applicationDetails;
 
   /**
    * @internal Set plan name.
@@ -29,6 +31,38 @@ class ThreeScaleAuthorizeResponse extends ThreeScaleResponse {
    */
   public function getPlan() {
     return $this->plan;
+  }
+
+  /**
+   * @internal Set application details.
+   */
+  public function setApplication($application) {
+    $this->application = $application;
+  }
+
+  /**
+   * Get application details for the client's app
+   *
+   * @return object
+   */
+  public function getApplication() {
+    return $this->xml2array($this->application);
+  }
+
+  /**
+   * @internal Set application details.
+   */
+  public function setApplicationDetails($details) {
+    $this->applicationDetails = $details;
+  }
+
+  /**
+   * Get application details for the client's app
+   *
+   * @return object
+   */
+  public function getApplicationDetails() {
+    return $this->xml2array($this->applicationDetails);
   }
 
   /**
@@ -51,6 +85,17 @@ class ThreeScaleAuthorizeResponse extends ThreeScaleResponse {
   public function getUsageReports() {
     return $this->usageReports;
   }
+
+  /**
+   * @link http://stackoverflow.com/questions/6167279/converting-a-simplexml-object-to-an-array
+   */
+  private function xml2array ( $xmlObject, $out = array () ) {
+    foreach ( (array) $xmlObject as $index => $node )
+        $out[$index] = ( is_object ( $node ) ) ? $this->xml2array ( $node ) : $node;
+
+    return $out;
+  }
+
 }
 
 /**

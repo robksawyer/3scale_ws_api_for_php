@@ -23,7 +23,8 @@ class ThreeScaleClient {
 
   private $providerKey;
   private $host;
-  private $httpClient;
+  private $applicationHost;
+  private $httpClient; 
 
   /**
    * Create a ThreeScaleClient instance.
@@ -59,6 +60,22 @@ class ThreeScaleClient {
    */
   public function getHost() {
     return $this->host;
+  }
+
+  /**
+   * Get hostname of 3scale backend server.
+   * @return string
+   */
+  public function setApplicationHost($host) {
+    $this->applicationHost = $host;
+  }
+
+  /**
+   * Get hostname of client 3Scale server.
+   * @return string
+   */
+  public function getApplicationHost() {
+    return $this->applicationHost;
   }
 
   /**
@@ -161,9 +178,8 @@ class ThreeScaleClient {
     }
     
     $httpResponse = $this->httpClient->get($url, $params);
-
     if (self::isHttpSuccess($httpResponse)) {
-      return $this->buildAuthorizeResponse($httpResponse->body);
+      return $this->buildOAuthAuthorizeResponse($httpResponse->body);
     } else {
       return $this->processError($httpResponse);
     }
@@ -278,6 +294,65 @@ class ThreeScaleClient {
     
   }
 
+/**
+   * Finds an application by keys used on the integration of your API and 3scale's Service Management API or by id (no need to know the account_id).
+   * @param $appId  application id.
+   * @param $appKey secret application key.
+   * @param $userKey of the application (for user_key authentication mode).
+   *
+   * @return ThreeScaleResponse object containing additional authorization information.
+   * If both provider key and application id are valid, the returned object is actually
+   * @see ThreeScaleAuthorizeResponse (which is derived from ThreeScaleResponse) and
+   * contains additional information about the usage status.
+   *
+   * @see ThreeScaleResponse
+   * @see ThreeScaleAuthorizeResponse
+   *
+   * @throws ThreeScaleServerError in case of unexpected internal server error
+   *
+   * Example:
+   *
+   * <code>
+   *   <?php
+   *   $response = $client->application('app-id', 'app-key');
+   *   // or $response = $client->authorize('app-id', 'app-key','service_id');
+   *
+   *   if ($response->isSuccess()) {
+   *     // ok.
+   *   } else {
+   *     // something is wrong.
+   *   }
+   *   ?>
+   * </code>
+   */
+
+   public function application($appId, $appKey = null, $userKey = null) {  
+
+    $url = "https://" . $this->getApplicationHost() . "/admin/api/applications/find.xml";
+    $params = array('provider_key' => $this->getProviderKey(), 'app_id' => $appId);
+   
+    if ($appKey) $params['app_key'] = $appKey;
+    if ($userKey) $params['user_id'] = $userKey;
+     
+    $httpResponse = $this->httpClient->get($url, $params);
+    if (self::isHttpSuccess($httpResponse)) {
+      $doc = new SimpleXMLElement($httpResponse->body);
+      return $this->xml2array($doc);
+    } else {
+      return $this->processError($httpResponse);
+    }
+  }
+
+   /**
+   * @link http://stackoverflow.com/questions/6167279/converting-a-simplexml-object-to-an-array
+   */
+  private function xml2array ( $xmlObject, $out = array () ) {
+    foreach ( (array) $xmlObject as $index => $node )
+        $out[$index] = ( is_object ( $node ) ) ? $this->xml2array ( $node ) : $node;
+
+    return $out;
+  }
+
   public function authrep_with_user_key($userKey, $usage = null, $userId = null, $object = null, $no_body = null, $serviceId = null) {  
     $url = "http://" . $this->getHost() . "/transactions/authrep.xml";
 
@@ -384,6 +459,33 @@ class ThreeScaleClient {
     }
   }
 
+  private function buildOAuthAuthorizeResponse($body) {
+    $response = new ThreeScaleAuthorizeResponse;
+
+    $doc = new SimpleXMLElement($body);
+
+    if ((string) $doc->authorized == 'true') {
+      $response->setSuccess();
+    } else {
+      $response->setError((string) $doc->reason);
+    }
+
+    $response->setPlan((string) $doc->plan);
+    $response->setApplication((object) $doc->application); 
+    if ($doc->usage_reports) {
+      foreach ($doc->usage_reports->usage_report as $node) {
+        $response->addUsageReport()
+          ->setMetric(trim($node['metric']))
+          ->setPeriod(trim($node['period']))
+          ->setPeriodInterval((string) $node->period_start, (string) $node->period_end)
+          ->setCurrentValue((int) (string) $node->current_value)
+          ->setMaxValue((int) (string) $node->max_value);
+      }
+    }
+
+    return $response;
+  }
+
   private function buildAuthorizeResponse($body) {
     $response = new ThreeScaleAuthorizeResponse;
 
@@ -414,7 +516,6 @@ class ThreeScaleClient {
   private function buildErrorResponse($body) {
     $response = new ThreeScaleResponse(false);
     $doc = new SimpleXMLElement($body);
-
     $response->setError(trim((string) $doc), $doc['code']);
     return $response;
   }
@@ -485,6 +586,7 @@ class ThreeScaleClient {
 
     $this->httpClient = $httpClient;
   }
+
 }
 
 // Base class for all exceptions.
